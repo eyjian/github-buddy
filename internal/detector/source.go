@@ -9,9 +9,10 @@ import (
 	"time"
 )
 
-// GitHub520 数据源 URL
+// 数据源 URL
 const (
 	GitHub520URL = "https://raw.hellogithub.com/hosts"
+	Ineo6URL     = "https://gitlab.com/ineo6/hosts/-/raw/master/hosts"
 )
 
 // Source 定义数据源接口
@@ -43,24 +44,54 @@ func (s *GitHub520Source) Name() string {
 }
 
 // FetchIPs 从 GitHub520 获取 hosts 格式的域名-IP 映射
+func (s *GitHub520Source) FetchIPs(ctx context.Context) (map[string][]string, error) {
+	return fetchHostsFromURL(ctx, s.client, s.url, s.Name())
+}
+
+// Ineo6Source 从 ineo6/hosts 项目获取候选 IP
+type Ineo6Source struct {
+	url    string
+	client *http.Client
+}
+
+// NewIneo6Source 创建 ineo6/hosts 数据源
+func NewIneo6Source() *Ineo6Source {
+	return &Ineo6Source{
+		url: Ineo6URL,
+		client: &http.Client{
+			Timeout: 15 * time.Second,
+		},
+	}
+}
+
+func (s *Ineo6Source) Name() string {
+	return "Ineo6"
+}
+
+// FetchIPs 从 ineo6/hosts 获取 hosts 格式的域名-IP 映射
+func (s *Ineo6Source) FetchIPs(ctx context.Context) (map[string][]string, error) {
+	return fetchHostsFromURL(ctx, s.client, s.url, s.Name())
+}
+
+// fetchHostsFromURL 通用的 hosts 格式数据获取与解析函数
 // 格式示例：
 //
 //	140.82.114.4 github.com
 //	185.199.108.133 raw.githubusercontent.com
-func (s *GitHub520Source) FetchIPs(ctx context.Context) (map[string][]string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url, nil)
+func fetchHostsFromURL(ctx context.Context, client *http.Client, url, sourceName string) (map[string][]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 
-	resp, err := s.client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("获取 GitHub520 数据失败: %w", err)
+		return nil, fmt.Errorf("获取 %s 数据失败: %w", sourceName, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub520 返回错误状态码: %d", resp.StatusCode)
+		return nil, fmt.Errorf("%s 返回错误状态码: %d", sourceName, resp.StatusCode)
 	}
 
 	result := make(map[string][]string)
@@ -88,7 +119,7 @@ func (s *GitHub520Source) FetchIPs(ctx context.Context) (map[string][]string, er
 	}
 
 	if len(result) == 0 {
-		return nil, fmt.Errorf("未从 GitHub520 获取到任何有效 IP 映射")
+		return nil, fmt.Errorf("未从 %s 获取到任何有效 IP 映射", sourceName)
 	}
 
 	return result, nil

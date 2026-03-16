@@ -20,7 +20,7 @@ type Detector struct {
 // NewDetector 创建检测器
 func NewDetector(logger zerolog.Logger) *Detector {
 	d := &Detector{
-		source:     NewMultiSource(NewGitHub520Source()),
+		source:     NewMultiSource(NewGitHub520Source(), NewIneo6Source()),
 		pinger:     NewPinger(3, 5*time.Second),
 		tcpChecker: NewTCPChecker(3 * time.Second),
 		logger:     logger,

@@ -36,6 +36,12 @@ func DefaultConfig() *Config {
 				Priority: 1,
 				Enabled:  true,
 			},
+			{
+				Name:     "Ineo6",
+				URL:      "https://gitlab.com/ineo6/hosts/-/raw/master/hosts",
+				Priority: 2,
+				Enabled:  true,
+			},
 		},
 		Domains: []string{
 			"github.com",
