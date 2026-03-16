@@ -266,6 +266,40 @@ make lint
 
 ---
 
+## ❓ 常见问题
+
+### 更新 hosts 后浏览器访问 GitHub 仍然不通？
+
+修改 hosts 文件后，**浏览器（尤其是 Chrome）可能不会立即使用新的 IP**，这是因为浏览器有独立的 DNS 缓存机制。
+
+#### 方法一：清除 Chrome 内置缓存（无需重启浏览器）
+
+1. **清除 DNS 缓存**：在地址栏输入 `chrome://net-internals/#dns`，点击 **"Clear host cache"**
+2. **清除连接池**：在地址栏输入 `chrome://net-internals/#sockets`，点击 **"Flush socket pools"**（Chrome 会复用已建立的 TCP/TLS 连接，不清除连接池可能仍在使用旧 IP）
+
+#### 方法二：重启浏览器
+
+直接关闭并重新打开 Chrome，这是最简单粗暴但有效的方式。
+
+#### 方法三：同时清除系统 DNS 缓存（推荐配合使用）
+
+```bash
+# Linux (systemd)
+sudo systemd-resolve --flush-caches
+# 或
+sudo resolvectl flush-caches
+
+# macOS
+sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
+
+# Windows
+ipconfig /flushdns
+```
+
+> 💡 **推荐操作顺序**：执行 `github-buddy update` → 清除系统 DNS 缓存 → 清除 Chrome DNS 缓存 + Flush sockets
+
+---
+
 ## 🛡️ 安全说明
 
 - **权限要求**：修改 hosts 文件需要管理员/root 权限，工具会自动检测并给出提权指引
