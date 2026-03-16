@@ -1,0 +1,14 @@
+# 编译产物
+github-buddy
+github-buddy.exe
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
