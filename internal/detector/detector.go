@@ -10,20 +10,22 @@ import (
 
 // Detector 是统一的 IP 检测器，协调数据源获取、多维度检测、评分筛选
 type Detector struct {
-	source     *MultiSource
-	pinger     *Pinger
-	tcpChecker *TCPChecker
-	logger     zerolog.Logger
-	icmpOK     bool // ICMP 是否可用
+	source       *MultiSource
+	pinger       *Pinger
+	tcpChecker   *TCPChecker
+	httpsChecker *HTTPSChecker
+	logger       zerolog.Logger
+	icmpOK       bool // ICMP 是否可用
 }
 
 // NewDetector 创建检测器
 func NewDetector(logger zerolog.Logger) *Detector {
 	d := &Detector{
-		source:     NewMultiSource(NewGitHub520Source(), NewIneo6Source()),
-		pinger:     NewPinger(3, 5*time.Second),
-		tcpChecker: NewTCPChecker(3 * time.Second),
-		logger:     logger,
+		source:       NewMultiSource(NewGitHub520Source(), NewIneo6Source()),
+		pinger:       NewPinger(3, 5*time.Second),
+		tcpChecker:   NewTCPChecker(3 * time.Second),
+		httpsChecker: NewHTTPSChecker(5 * time.Second),
+		logger:       logger,
 	}
 
 	// 检测 ICMP 是否可用
@@ -54,6 +56,7 @@ func (d *Detector) DetectAll(ctx context.Context) (*DetectResult, error) {
 		Domains:   make(map[string]*DomainIPs),
 		Timestamp: time.Now().Unix(),
 		ICMPUsed:  d.icmpOK,
+		HTTPSUsed: true,
 	}
 
 	var wg sync.WaitGroup
@@ -109,13 +112,14 @@ func (d *Detector) detectDomain(ctx context.Context, domain string, ips []string
 			Str("best_ip", best.IP).
 			Float64("score", best.Score).
 			Float64("latency_ms", best.Latency).
+			Bool("https", best.HTTPS).
 			Msg("域名最优 IP")
 	}
 
 	return domainResult
 }
 
-// detectIP 对单个 IP 执行多维度检测
+// detectIP 对单个 IP 执行多维度检测（HTTPS + TCP + ICMP 并发）
 func (d *Detector) detectIP(ctx context.Context, domain, ip string) IPEntry {
 	entry := IPEntry{
 		IP:     ip,
@@ -123,6 +127,24 @@ func (d *Detector) detectIP(ctx context.Context, domain, ip string) IPEntry {
 	}
 
 	var wg sync.WaitGroup
+
+	// HTTPS 应用层验证（最关键的可用性检测）
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		r := d.httpsChecker.Check(ctx, ip, domain)
+		entry.HTTPS = r.OK
+		if r.OK {
+			entry.HTTPSLatency = r.Latency
+		}
+		if r.Error != nil {
+			d.logger.Debug().
+				Str("ip", ip).
+				Str("domain", domain).
+				Err(r.Error).
+				Msg("HTTPS 验证失败")
+		}
+	}()
 
 	// TCP 443 端口检测
 	wg.Add(1)
@@ -159,7 +181,7 @@ func (d *Detector) detectIP(ctx context.Context, domain, ip string) IPEntry {
 	wg.Wait()
 
 	entry.Score = ScoreIP(&entry)
-	entry.Available = entry.Port443 || entry.Port22
+	entry.Available = entry.HTTPS || entry.Port443 || entry.Port22
 	return entry
 }
 

@@ -5,30 +5,49 @@ import (
 	"sort"
 )
 
-// 评分权重配置
+// 评分权重配置（含 HTTPS 验证维度）
 const (
-	latencyWeight  = 0.5  // 延迟权重
-	lossWeight     = 0.3  // 丢包率权重
-	portWeight     = 0.2  // 端口连通性权重
-	maxLatencyMS   = 500  // 最大可接受延迟（毫秒），超过此值得 0 分
-	targetLatency  = 50.0 // 目标延迟（毫秒），低于此值得满分
+	httpsWeight   = 0.4  // HTTPS 验证权重（最高优先级）
+	latencyWeight = 0.3  // 延迟权重
+	lossWeight    = 0.15 // 丢包率权重
+	portWeight    = 0.15 // 端口连通性权重
+	maxLatencyMS  = 500  // 最大可接受延迟（毫秒），超过此值得 0 分
+	targetLatency = 50.0 // 目标延迟（毫秒），低于此值得满分
 )
 
 // ScoreIP 计算单个 IP 的质量评分（0-100）
+// 评分维度：HTTPS 验证(40%) + 延迟(30%) + 丢包率(15%) + 端口连通(15%)
 func ScoreIP(entry *IPEntry) float64 {
-	// 1. 延迟评分（0-100）
-	latencyScore := calcLatencyScore(entry.Latency)
+	// 1. HTTPS 验证评分（0 或 100）
+	httpsScore := calcHTTPSScore(entry.HTTPS)
 
-	// 2. 丢包率评分（0-100）
+	// 2. 延迟评分（0-100）
+	// 优先使用 HTTPS 延迟（更准确），无 HTTPS 延迟时使用 TCP/ICMP 延迟
+	latency := entry.Latency
+	if entry.HTTPS && entry.HTTPSLatency > 0 {
+		latency = entry.HTTPSLatency
+	}
+	latencyScore := calcLatencyScore(latency)
+
+	// 3. 丢包率评分（0-100）
 	lossScore := calcLossScore(entry.LossRate)
 
-	// 3. 端口连通性评分（0-100）
+	// 4. 端口连通性评分（0-100）
 	portScore := calcPortScore(entry.Port443, entry.Port22)
 
 	// 加权计算总分
-	score := latencyScore*latencyWeight + lossScore*lossWeight + portScore*portWeight
+	score := httpsScore*httpsWeight + latencyScore*latencyWeight + lossScore*lossWeight + portScore*portWeight
 
 	return math.Round(score*100) / 100
+}
+
+// calcHTTPSScore 计算 HTTPS 验证评分
+// HTTPS 验证通过得 100 分，未通过得 0 分
+func calcHTTPSScore(https bool) float64 {
+	if https {
+		return 100
+	}
+	return 0
 }
 
 // calcLatencyScore 计算延迟评分
@@ -76,7 +95,7 @@ func RankIPs(entries []IPEntry) []IPEntry {
 	// 先计算评分
 	for i := range entries {
 		entries[i].Score = ScoreIP(&entries[i])
-		entries[i].Available = entries[i].Port443 || entries[i].Port22
+		entries[i].Available = entries[i].HTTPS || entries[i].Port443 || entries[i].Port22
 	}
 
 	// 按评分降序排序

@@ -6,10 +6,12 @@ import (
 
 func TestScoreIP_FullScore(t *testing.T) {
 	entry := &IPEntry{
-		Latency:  10,
-		LossRate: 0,
-		Port443:  true,
-		Port22:   true,
+		Latency:      10,
+		LossRate:     0,
+		Port443:      true,
+		Port22:       true,
+		HTTPS:        true,
+		HTTPSLatency: 50,
 	}
 	score := ScoreIP(entry)
 	if score < 90 {
@@ -19,41 +21,91 @@ func TestScoreIP_FullScore(t *testing.T) {
 
 func TestScoreIP_HighLatency(t *testing.T) {
 	entry := &IPEntry{
-		Latency:  400,
-		LossRate: 0,
-		Port443:  true,
-		Port22:   true,
+		Latency:      400,
+		LossRate:     0,
+		Port443:      true,
+		Port22:       true,
+		HTTPS:        true,
+		HTTPSLatency: 400,
 	}
 	score := ScoreIP(entry)
-	if score > 70 {
-		t.Errorf("高延迟场景评分应＜70, 实际: %.2f", score)
+	if score > 80 {
+		t.Errorf("高延迟场景评分应＜80, 实际: %.2f", score)
 	}
 }
 
 func TestScoreIP_PortsDown(t *testing.T) {
 	entry := &IPEntry{
-		Latency:  10,
-		LossRate: 0,
-		Port443:  false,
-		Port22:   false,
+		Latency:      10,
+		LossRate:     0,
+		Port443:      false,
+		Port22:       false,
+		HTTPS:        true,
+		HTTPSLatency: 10,
 	}
 	score := ScoreIP(entry)
-	if score > 80 {
-		t.Errorf("端口不通场景评分应＜80, 实际: %.2f", score)
+	// HTTPS 通过但端口不通，评分应较高（HTTPS 权重 40%）
+	if score < 50 {
+		t.Errorf("HTTPS通过但端口不通场景评分应≥50, 实际: %.2f", score)
 	}
 }
 
 func TestScoreIP_PacketLoss(t *testing.T) {
 	entry := &IPEntry{
-		Latency:  10,
-		LossRate: 0.5,
-		Port443:  true,
-		Port22:   true,
+		Latency:      10,
+		LossRate:     0.5,
+		Port443:      true,
+		Port22:       true,
+		HTTPS:        true,
+		HTTPSLatency: 10,
 	}
 	score := ScoreIP(entry)
-	full := ScoreIP(&IPEntry{Latency: 10, LossRate: 0, Port443: true, Port22: true})
+	full := ScoreIP(&IPEntry{Latency: 10, LossRate: 0, Port443: true, Port22: true, HTTPS: true, HTTPSLatency: 10})
 	if score >= full {
 		t.Errorf("有丢包的评分(%.2f)应低于无丢包(%.2f)", score, full)
+	}
+}
+
+// TestScoreIP_HTTPSPass HTTPS 通过的 IP 评分应显著高于仅 TCP 连通的 IP
+func TestScoreIP_HTTPSPass(t *testing.T) {
+	httpsEntry := &IPEntry{
+		Latency:      10,
+		LossRate:     0,
+		Port443:      true,
+		Port22:       true,
+		HTTPS:        true,
+		HTTPSLatency: 10,
+	}
+	tcpOnlyEntry := &IPEntry{
+		Latency:  10,
+		LossRate: 0,
+		Port443:  true,
+		Port22:   true,
+		HTTPS:    false,
+	}
+	httpsScore := ScoreIP(httpsEntry)
+	tcpScore := ScoreIP(tcpOnlyEntry)
+
+	// HTTPS 通过的评分应至少高出 30 分（HTTPS 权重 40%，得分差 40）
+	diff := httpsScore - tcpScore
+	if diff < 30 {
+		t.Errorf("HTTPS通过的IP(%.2f)应比仅TCP连通的IP(%.2f)高出至少30分, 实际差值: %.2f", httpsScore, tcpScore, diff)
+	}
+}
+
+// TestScoreIP_HTTPSFail HTTPS 未通过的 IP 评分应低于阈值
+func TestScoreIP_HTTPSFail(t *testing.T) {
+	entry := &IPEntry{
+		Latency:  10,
+		LossRate: 0,
+		Port443:  true,
+		Port22:   true,
+		HTTPS:    false,
+	}
+	score := ScoreIP(entry)
+	// 即使 TCP 全通、延迟极低，HTTPS 未通过时总分不应超过 60（最高 60 = 30+15+15）
+	if score > 60 {
+		t.Errorf("HTTPS未通过时评分不应超过60, 实际: %.2f", score)
 	}
 }
 
