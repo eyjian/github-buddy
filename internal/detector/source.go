@@ -149,4 +149,5 @@ var TargetDomains = []string{
 	"collector.github.com",
 	"avatars.githubusercontent.com",
 	"codeload.github.com",
+	"github.githubassets.com",
 }

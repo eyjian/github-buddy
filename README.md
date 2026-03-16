@@ -14,7 +14,7 @@
 ## ✨ 功能特性
 
 - 🔍 **智能 IP 检测** — 多维度并发检测（ICMP Ping / TCP 443 / TCP 22），自动评分筛选最优 IP
-- 🌐 **全量域名覆盖** — 维护 `github.com`、`raw.githubusercontent.com`、`api.github.com` 等 10 个核心域名
+- 🌐 **全量域名覆盖** — 维护 `github.com`、`raw.githubusercontent.com`、`api.github.com` 等 11 个核心域名
 - 🖥️ **跨平台支持** — 一套代码覆盖 Windows 10+、macOS 12+、主流 Linux 发行版
 - 🔒 **安全保障** — 自动备份 hosts 文件，支持一键回滚，SHA256 完整性校验
 - 📦 **零依赖分发** — 静态编译的单二进制文件，下载即用
@@ -155,7 +155,7 @@ sudo github-buddy rollback
 |------|------|--------|------|
 | `update_interval_hours` | int | `6` | 自动检查 IP 的间隔（小时） |
 | `data_sources` | array | GitHub520 | IP 数据源列表，支持多源扩展 |
-| `domains` | array | 10 个域名 | 需要维护的 GitHub 域名清单 |
+| `domains` | array | 11 个域名 | 需要维护的 GitHub 域名清单 |
 
 ---
 

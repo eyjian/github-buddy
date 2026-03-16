@@ -1,10 +1,11 @@
 package main
 
 import (
+	"github.com/spf13/cobra"
+
 	"github.com/eyjian/github-buddy/internal/logger"
 	"github.com/eyjian/github-buddy/internal/platform"
 	"github.com/eyjian/github-buddy/internal/storage"
-	"github.com/spf13/cobra"
 )
 
 var (

@@ -1,6 +1,6 @@
 # 编译产物
-github-buddy
-github-buddy.exe
+/github-buddy
+/github-buddy.exe
 dist/
 
 # IDE

@@ -45,6 +45,10 @@ var DefaultIPs = map[string][]string{
 		"140.82.121.9",
 		"20.205.243.165",
 	},
+	"github.githubassets.com": {
+		"185.199.108.154",
+		"185.199.109.154",
+	},
 }
 
 // GetDefaultIPs 返回内置默认 IP 列表的副本

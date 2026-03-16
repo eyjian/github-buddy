@@ -48,6 +48,7 @@ func DefaultConfig() *Config {
 			"collector.github.com",
 			"avatars.githubusercontent.com",
 			"codeload.github.com",
+			"github.githubassets.com",
 		},
 	}
 }
