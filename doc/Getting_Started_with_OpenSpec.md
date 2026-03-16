@@ -1,4 +1,4 @@
-入门openspec
+实战openspec
 
 # 什么是OpenSpec？
 
@@ -173,6 +173,8 @@ Space to toggle, Enter to confirm
 * 核心差异：propose 是「**提想法 + 做规划**」，new 只是「**建空架子**」。
 
 ## 使用openspec
+
+**实战项目：**[https://github.com/eyjian/github-buddy](https://github.com/eyjian/github-buddy)
 
 ### 构建文档
 
