@@ -26,9 +26,9 @@
 
 ## Impact
 
-- **新增代码**：整个 C++ 项目代码库，包含 IP 检测模块、hosts 管理模块、命令行接口等
+- **新增代码**：整个 Go 项目代码库，包含 IP 检测模块、hosts 管理模块、命令行接口等
 - **系统依赖**：需要操作系统管理员/root 权限来修改 hosts 文件
 - **网络依赖**：依赖公开 GitHub IP 数据源（如 GitHub520）获取候选 IP 列表
 - **文件系统影响**：修改系统 hosts 文件（Linux/macOS: `/etc/hosts`，Windows: `C:\Windows\System32\drivers\etc\hosts`）
 - **用户数据目录**：在 `~/.github-buddy/` 下存储日志、缓存、配置
-- **兼容性要求**：Windows 10+、macOS 12+、Linux（CentOS/Ubuntu/Debian）；Go 1.18+；Git 2.30+
+- **兼容性要求**：Windows 10+、macOS 12+、Linux（CentOS/Ubuntu/Debian）；Go 1.21+；Git 2.30+
