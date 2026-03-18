@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"sync"
@@ -33,8 +34,11 @@ func NewHTTPSChecker(timeout time.Duration) *HTTPSChecker {
 	return &HTTPSChecker{timeout: timeout}
 }
 
+// browserUserAgent 模拟 Chrome 浏览器的 User-Agent，避免被服务端或中间设备区别对待
+const browserUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
 // Check 对指定 IP 执行 HTTPS 验证
-// 流程：TLS 握手（验证证书匹配目标域名） → HTTP HEAD 请求 → 验证状态码
+// 流程：TLS 握手（验证证书匹配目标域名） → HTTP GET 请求 → 验证状态码
 func (c *HTTPSChecker) Check(ctx context.Context, ip, domain string) HTTPSCheckResult {
 	result := HTTPSCheckResult{IP: ip, Domain: domain}
 
@@ -69,19 +73,26 @@ func (c *HTTPSChecker) Check(ctx context.Context, ip, domain string) HTTPSCheckR
 	client := &http.Client{
 		Transport: transport,
 		Timeout:   c.timeout,
-		// 不跟随重定向，只检查第一个响应
+		// 允许最多跟随 1 次重定向，更接近浏览器真实行为
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
+			if len(via) >= 1 {
+				return http.ErrUseLastResponse
+			}
+			return nil
 		},
 	}
 
-	// 构造 HTTP HEAD 请求，Host 设为目标域名
+	// 构造 HTTP GET 请求（比 HEAD 更接近浏览器真实行为，部分 CDN/中间层对 HEAD 和 GET 处理不同）
 	url := fmt.Sprintf("https://%s/", domain)
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		result.Error = fmt.Errorf("创建 HTTPS 请求失败: %w", err)
 		return result
 	}
+	// 设置浏览器 User-Agent，避免被服务端或 DPI 设备识别为工具请求
+	req.Header.Set("User-Agent", browserUserAgent)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
 
 	resp, err := client.Do(req)
 	elapsed := time.Since(start)
@@ -91,6 +102,13 @@ func (c *HTTPSChecker) Check(ctx context.Context, ip, domain string) HTTPSCheckR
 		return result
 	}
 	defer resp.Body.Close()
+
+	// 读取部分 body 以确认连接真正可用（而非仅收到响应头）
+	// 限制最多读取 4KB，避免浪费带宽
+	bodyBytes, _ := io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+
+	// 输出 StatusCode 和读取到的字节数，便于诊断网络问题
+	fmt.Printf("  HTTPS GET %s (IP=%s): StatusCode=%d, BodyBytes=%d\n", domain, ip, resp.StatusCode, bodyBytes)
 
 	// 状态码 < 500 视为可用（允许 3xx 重定向、4xx 认证等正常响应）
 	if resp.StatusCode < 500 {

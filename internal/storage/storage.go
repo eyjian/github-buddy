@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/eyjian/github-buddy/internal/hosts"
 	"github.com/eyjian/github-buddy/internal/platform"
 )
 
@@ -46,10 +47,16 @@ func (m *Manager) Init() error {
 	return nil
 }
 
-// IsInitialized 检查数据目录是否已初始化
+// IsInitialized 检查是否已完成初始化
+// 同时检查数据目录是否存在和 hosts 文件中是否包含 github-buddy 标记区块，
+// 避免目录已创建但 hosts 未修改时误判为已初始化
 func (m *Manager) IsInitialized() bool {
-	_, err := os.Stat(m.dataDir)
-	return err == nil
+	// 检查数据目录是否存在
+	if _, err := os.Stat(m.dataDir); err != nil {
+		return false
+	}
+	// 检查 hosts 文件中是否存在 github-buddy 标记区块
+	return hosts.HasBlock(m.plat.HostPath)
 }
 
 // DataDir 返回数据目录路径

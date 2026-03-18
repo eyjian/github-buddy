@@ -13,6 +13,7 @@ import (
 	"github.com/eyjian/github-buddy/internal/detector"
 	"github.com/eyjian/github-buddy/internal/hosts"
 	"github.com/eyjian/github-buddy/internal/logger"
+	"github.com/eyjian/github-buddy/internal/platform"
 )
 
 var updateCmd = &cobra.Command{
@@ -98,6 +99,13 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 
 	// 保存缓存
 	saveCache(store.CachePath(), result, ipMap)
+
+	// 刷新系统 DNS 缓存
+	flushResult := platform.FlushDNSCache(context.Background(), plat.OS)
+	if flushResult.Error != nil {
+		logger.Logger.Warn().Err(flushResult.Error).Msg("自动刷新 DNS 缓存失败")
+	}
+	platform.PrintFlushResult(flushResult, plat.OS)
 
 	// 输出结果摘要
 	fmt.Print("\n✅ 更新完成！域名映射变化：\n\n")

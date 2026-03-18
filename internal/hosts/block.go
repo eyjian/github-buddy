@@ -2,6 +2,7 @@ package hosts
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -16,6 +17,17 @@ type Block struct {
 	StartLine int    // 起始行号（0-based）
 	EndLine   int    // 结束行号（0-based）
 	Entries   []Entry // 区块内的条目
+}
+
+// HasBlock 检查指定 hosts 文件中是否存在 github-buddy 标记区块
+// 用于判断 hosts 文件是否已被 github-buddy 修改过
+func HasBlock(hostsPath string) bool {
+	data, err := os.ReadFile(hostsPath)
+	if err != nil {
+		return false
+	}
+	content := string(data)
+	return strings.Contains(content, BlockStart) && strings.Contains(content, BlockEnd)
 }
 
 // FindBlock 在 hosts 文件的行列表中查找标记区块

@@ -11,6 +11,7 @@ import (
 	"github.com/eyjian/github-buddy/internal/detector"
 	"github.com/eyjian/github-buddy/internal/hosts"
 	"github.com/eyjian/github-buddy/internal/logger"
+	"github.com/eyjian/github-buddy/internal/platform"
 	"github.com/spf13/cobra"
 )
 
@@ -90,7 +91,14 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// 9. 保存缓存
 	saveCache(store.CachePath(), result, ipMap)
 
-	// 10. 输出结果摘要
+	// 10. 刷新系统 DNS 缓存
+	flushResult := platform.FlushDNSCache(context.Background(), plat.OS)
+	if flushResult.Error != nil {
+		logger.Logger.Warn().Err(flushResult.Error).Msg("自动刷新 DNS 缓存失败")
+	}
+	platform.PrintFlushResult(flushResult, plat.OS)
+
+	// 11. 输出结果摘要
 	fmt.Print("\n✅ 初始化完成！已更新以下域名映射：\n\n")
 	printIPTable(ipMap, nil)
 

@@ -18,7 +18,7 @@
 - 🖥️ **跨平台支持** — 一套代码覆盖 Windows 10+、macOS 12+、主流 Linux 发行版
 - 🔒 **安全保障** — 自动备份 hosts 文件，支持一键回滚，SHA256 完整性校验
 - 📦 **零依赖分发** — 静态编译的单二进制文件，下载即用
-- 🔄 **自动更新** — 默认每 6 小时自动检查 IP 有效性，支持缓存和手动强制更新
+- 🔄 **缓存管理** — 内置缓存过期检测机制，支持手动更新和系统定时任务自动化
 - 🏷️ **隔离管理** — 使用注释标记区块隔离工具修改内容，不干扰用户手动配置
 
 ---
@@ -132,6 +132,12 @@ sudo github-buddy rollback
       "url": "https://raw.hellogithub.com/hosts",
       "priority": 1,
       "enabled": true
+    },
+    {
+      "name": "Ineo6",
+      "url": "https://gitlab.com/ineo6/hosts/-/raw/master/hosts",
+      "priority": 2,
+      "enabled": true
     }
   ],
   "domains": [
@@ -153,9 +159,56 @@ sudo github-buddy rollback
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `update_interval_hours` | int | `6` | 自动检查 IP 的间隔（小时） |
-| `data_sources` | array | GitHub520 | IP 数据源列表，支持多源扩展 |
+| `update_interval_hours` | int | `6` | 缓存过期判断阈值（小时），详见 [配置项详解](#update_interval_hours-说明) |
+| `data_sources` | array | GitHub520 + Ineo6 | IP 数据源列表，支持多源扩展 |
 | `domains` | array | 11 个域名 | 需要维护的 GitHub 域名清单 |
+
+### 配置生命周期
+
+```mermaid
+graph TD
+    A["github-buddy init"] -->|首次运行| B["DefaultConfig() 生成默认配置"]
+    B --> C["config.Save() 写入 ~/.github-buddy/config.json"]
+    C --> D["配置文件持久化"]
+    D --> E["github-buddy update / status"]
+    E --> F["config.LoadOrDefault() 加载配置"]
+    F -->|文件存在且合法| G["解析 JSON 返回用户配置"]
+    F -->|文件不存在或解析失败| H["静默回退到内置默认配置"]
+    G --> I["使用配置中的参数执行命令"]
+    H --> I
+```
+
+### `update_interval_hours` 说明
+
+> ⚠️ **注意**：`update_interval_hours` **不是**自动定时更新。工具本身没有后台守护进程或定时器，不会自动执行更新操作。
+
+它的实际作用是 **缓存过期判断阈值**：当你运行 `github-buddy status` 时，工具会检查上次更新距今是否超过该阈值，如果超过则**提示**你手动执行 `github-buddy update`，但不会自动执行。
+
+如果你需要真正的定时自动更新，请配合系统任务计划使用，参见 [定时自动更新](#-定时自动更新可选)。
+
+### 各配置项在命令中的使用
+
+| 配置项 | 使用命令 | 作用说明 |
+|--------|----------|----------|
+| `update_interval_hours` | `status` | 通过 `UpdateInterval()` 转为时间间隔，判断缓存是否过期，过期时**提示**用户手动更新（不会自动更新） |
+| `domains` | `update` | 用于 `hosts.DetectConflicts()` 检测用户手动写入的 hosts 条目与工具管理的域名是否冲突 |
+| `data_sources` | — | 配置预留字段，当前版本的 IP 检测器使用内置数据源 |
+
+### 如何自定义配置
+
+`init` 之后，可以直接编辑配置文件：
+
+```bash
+# 查看当前配置
+cat ~/.github-buddy/config.json
+
+# 修改配置（如将更新间隔改为 12 小时）
+vi ~/.github-buddy/config.json
+```
+
+修改后**无需重新 `init`**，下次运行 `update` 或 `status` 命令时自动加载新配置。
+
+> ⚠️ 如果配置文件被误删或格式损坏，工具会自动回退到内置默认配置，不会报错。
 
 ---
 
@@ -264,6 +317,37 @@ make test-short
 make lint
 ```
 
+### CI/CD 自动化
+
+项目使用 GitHub Actions + GoReleaser 实现自动测试和跨平台发布。详见 [CI/CD 使用指南](doc/ci-cd-guide.md)。
+
+---
+
+## ⏰ 定时自动更新（可选）
+
+工具本身不包含后台守护进程，如需定时自动更新 hosts，推荐使用操作系统自带的任务计划功能：
+
+### Linux / macOS（crontab）
+
+```bash
+# 编辑当前用户的 crontab
+sudo crontab -e
+
+# 每 6 小时自动更新一次（与默认 update_interval_hours 对应）
+0 */6 * * * /usr/local/bin/github-buddy update --force >> /tmp/github-buddy-cron.log 2>&1
+```
+
+> 💡 请将 `/usr/local/bin/github-buddy` 替换为实际安装路径（可通过 `which github-buddy` 查看）。需要使用 `sudo crontab -e`（root 的 crontab），因为修改 hosts 文件需要管理员权限。
+
+### Windows（任务计划程序）
+
+1. 打开"任务计划程序"（搜索 `taskschd.msc`）
+2. 点击"创建基本任务"
+3. 设置触发器为"每天"，并在高级设置中勾选"重复任务间隔"为 6 小时
+4. 操作选择"启动程序"，填入 `github-buddy.exe` 的完整路径，参数填 `update --force`
+
+> ⚠️ 创建任务时，请勾选"使用最高权限运行"，否则无法修改 hosts 文件。
+
 ---
 
 ## ❓ 常见问题
@@ -355,5 +439,8 @@ ipconfig /flushdns
 ## 🙏 致谢
 
 - [GitHub520](https://github.com/521xueweihan/GitHub520) — 提供 GitHub 域名 IP 数据源
+- [Ineo6 Hosts](https://github.com/ineo6/hosts) — 提供 GitHub 域名 IP 数据源
 - [cobra](https://github.com/spf13/cobra) — 优秀的 Go CLI 框架
 - [zerolog](https://github.com/rs/zerolog) — 高性能结构化日志库
+- [lumberjack](https://github.com/natefinish/lumberjack) — 日志文件自动轮转和压缩
+- [GoReleaser](https://github.com/goreleaser/goreleaser) — 自动化发布工具

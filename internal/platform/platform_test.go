@@ -1,10 +1,10 @@
 package platform
 
 import (
+	"os"
 	"runtime"
 	"testing"
 )
-
 func TestDetect(t *testing.T) {
 	info, err := Detect()
 	if err != nil {
@@ -52,14 +52,23 @@ func TestIsWindows(t *testing.T) {
 	}
 }
 
+func TestIsRoot(t *testing.T) {
+	// 仅验证函数可正常调用并返回布尔值
+	result := IsRoot()
+	t.Logf("IsRoot() = %v (UID=%d)", result, os.Getuid())
+}
+
 func TestPermissionError(t *testing.T) {
+	isRoot := IsRoot()
+
 	tests := []struct {
-		os   string
-		want string
+		os       string
+		wantRoot string // root 用户时期望包含的关键词
+		wantUser string // 非 root 用户时期望包含的关键词
 	}{
-		{"linux", "sudo"},
-		{"darwin", "sudo"},
-		{"windows", "管理员"},
+		{"linux", "已是 root", "sudo"},
+		{"darwin", "已是 root", "sudo"},
+		{"windows", "管理员", "管理员"},
 	}
 
 	for _, tt := range tests {
@@ -68,5 +77,30 @@ func TestPermissionError(t *testing.T) {
 		if msg == "" {
 			t.Errorf("OS=%s 时错误消息不应为空", tt.os)
 		}
+
+		var want string
+		if isRoot {
+			want = tt.wantRoot
+		} else {
+			want = tt.wantUser
+		}
+		if !contains(msg, want) {
+			t.Errorf("OS=%s isRoot=%v: Error() = %q, 期望包含 %q", tt.os, isRoot, msg, want)
+		}
 	}
+}
+
+// contains 判断 s 中是否包含 substr
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
+		findSubstring(s, substr))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }

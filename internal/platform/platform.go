@@ -6,6 +6,12 @@ import (
 	"runtime"
 )
 
+// IsRoot 判断当前用户是否为 root（UID 为 0）。
+// Windows 下始终返回 false（Windows 使用管理员提权而非 root）。
+func IsRoot() bool {
+	return os.Getuid() == 0
+}
+
 // Info 包含当前平台的关键信息
 type Info struct {
 	OS       string // "windows", "darwin", "linux"
@@ -71,9 +77,10 @@ func (e *PermissionError) Error() string {
 	switch e.OS {
 	case "windows":
 		return "权限不足: 请以管理员身份运行命令提示符后重试"
-	case "darwin":
-		return "权限不足: 请使用 sudo github-buddy 运行"
 	default:
+		if IsRoot() {
+			return "权限不足: 当前已是 root 用户，请检查 hosts 文件权限"
+		}
 		return "权限不足: 请使用 sudo github-buddy 运行"
 	}
 }
